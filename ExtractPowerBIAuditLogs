@@ -1,0 +1,51 @@
+
+
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+
+# Assign a folder path
+$vOutputFolder = "D:\AuditLogs\"
+
+# Assign file name
+$vDateStamp = (get-date -Format 'FileDate') 
+$vOutputFile = $vOutputFolder + "PowerBILogs_" +  $vDateStamp + ".csv"
+
+#Prompt for credentials
+$vSessionName = 'PowerBIAuditLog_' + (get-date -Format FileDateTime)
+$vUserCredential = Get-Credential
+
+# Connect to Exchange Online
+$Session = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri https://outlook.office365.com/powershell-liveid/ -Credential $vUserCredential -Authentication Basic -AllowRedirection
+Import-PSSession $Session
+
+# Define date ranges for which logs will be extracted.
+$vStartDate=(get-date -Hour 0 -Minute 00 -Second 00).AddDays(-30)
+$vEndDate= get-date -Hour 0 -Minute 00 -Second 00
+
+$vFullResultSet = @()
+# Loop through audit logs and extract 5000 rows at a time and assign to $vFullResultSet
+$i = 1
+Do { 
+	$vCurrentResults = Search-UnifiedAuditLog -StartDate $vStartDate -EndDate $vEndDate -RecordType PowerBIAudit -SessionId $vSessionName -SessionCommand ReturnNextPreviewPage -ResultSize 5000 
+
+    $vRowCount =$vCurrentResults.Count
+	if ($vRowCount -gt 0) 
+    {
+		# Accumulate the data
+		$vFullResultSet += $vCurrentResults
+     }
+   
+
+    $i += 1
+} Until ($vCurrentResults.Count -eq 0)
+# End of loop
+
+
+# Create file with audit logs
+$vFullResultSet | Export-CSV -Path $vOutputFile 
+
+
+Remove-PSSession -Id $Session.Id
+
+
+
